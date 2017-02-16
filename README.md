@@ -4,6 +4,12 @@ Go library for Cloud Spanner
 
 https://godoc.org/cloud.google.com/go/spanner
 
+https://cloud.google.com/spanner/docs/reference/libraries
+
+> If you are using Google App Engine - Standard Environment, please access Cloud Spanner using the REST Interface, instead of the client libraries.
+
+BLOCKED! ヾ(๑╹◡╹)ﾉ"
+
 ## Future works
 
 * [ ] write document comment
