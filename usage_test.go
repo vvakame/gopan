@@ -2,20 +2,22 @@ package gopan
 
 import (
 	"fmt"
+	"os"
+	"reflect"
 	"testing"
 	"time"
-
-	"os"
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1"
 	"golang.org/x/net/context"
+	"google.golang.org/api/iterator"
 )
 
 type Article struct {
 	ID        int64 `gopan:"id"`
 	Title     string
 	Body      string
+	Authors   []spanner.NullString
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -46,6 +48,7 @@ func TestGopan_InsertMulti(t *testing.T) {
 			ID:        int64(i),
 			Title:     fmt.Sprintf("Title %d", i),
 			Body:      fmt.Sprintf("Body %d", i),
+			Authors:   []spanner.NullString{String("vvakame"), String("cat")},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
@@ -84,12 +87,37 @@ func TestGopan_Get(t *testing.T) {
 		ID:        300,
 		Title:     "Title TestGopan_GetMulti",
 		Body:      "Body TestGopan_GetMulti",
+		Authors:   []spanner.NullString{String("vvakame"), String("maya")},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 	_, err = g.Insert(art)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	{
+		ex, err := getExtruder(reflect.TypeOf(Article{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		keySet := spanner.Keys(g.Key(art).Key)
+		iter := g.client.Single().Read(g.Context, ex.Table(), keySet, ex.Columns())
+		defer iter.Stop()
+		for i := 0; ; i++ {
+			row, err := iter.Next()
+			if err == iterator.Done {
+				break
+			} else if err != nil {
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			err = row.ToStruct(&Article{})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 
 	newArt := &Article{ID: 300}

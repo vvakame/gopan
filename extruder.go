@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"cloud.google.com/go/civil"
 	"cloud.google.com/go/spanner"
 )
 
@@ -27,6 +28,7 @@ type extruderField struct {
 	Name           string
 	ColumnType     string
 	PK             bool
+	Array          bool
 	Length         int
 	NotNull        bool
 }
@@ -54,19 +56,19 @@ func getExtruder(t reflect.Type) (*extruder, error) {
 	columnIdx := 0
 	f = func(t reflect.Type, refIndexes []int) error {
 		for i := 0; i < t.NumField(); i++ {
-			tf := t.Field(i)
-			exported := tf.PkgPath == ""
-			if !exported && !tf.Anonymous {
+			sf := t.Field(i)
+			exported := sf.PkgPath == ""
+			if !exported && !sf.Anonymous {
 				continue
 			}
 
-			tag := tf.Tag.Get("spanner")
+			tag := sf.Tag.Get("spanner")
 			if tag == "-" {
 				continue
 			}
 
-			if tf.Anonymous {
-				nextT := tf.Type
+			if sf.Anonymous {
+				nextT := sf.Type
 				if nextT.Kind() == reflect.Ptr {
 					nextT = nextT.Elem()
 				}
@@ -80,7 +82,7 @@ func getExtruder(t reflect.Type) (*extruder, error) {
 				continue
 			}
 
-			exF := &extruderField{ColumnIndex: columnIdx}
+			exF := &extruderField{ColumnIndex: columnIdx, NotNull: true}
 			ex.Fields = append(ex.Fields, exF)
 			nextRefIndexes := make([]int, 0, len(refIndexes)+1)
 			nextRefIndexes = append(nextRefIndexes, refIndexes...)
@@ -88,24 +90,63 @@ func getExtruder(t reflect.Type) (*extruder, error) {
 			exF.ReflectIndexes = nextRefIndexes
 			columnIdx++
 
-			exF.Name = tf.Name
+			if tag != "" {
+				exF.Name = tag
+			} else {
+				exF.Name = sf.Name
+			}
 
-			tag = tf.Tag.Get("gopan")
+			tag = sf.Tag.Get("gopan")
 			if tag == "id" {
 				exF.PK = true
 			}
 
-			switch tf.Type.Kind() {
+			t := sf.Type
+			switch t.Kind() {
+			case reflect.Array, reflect.Slice:
+				exF.Array = true
+				t = t.Elem()
+			}
+
+			switch t.Kind() {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				fallthrough
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
 				exF.ColumnType = "INT64"
 			case reflect.String:
 				exF.ColumnType = "STRING"
+			case reflect.Bool:
+				exF.ColumnType = "BOOL"
+			case reflect.Float32, reflect.Float64:
+				exF.ColumnType = "FLOAT64"
 			default:
-				switch tf.Type {
+				switch t {
+				case reflect.TypeOf(spanner.NullString{}):
+					exF.ColumnType = "STRING"
+					exF.NotNull = false
+				case reflect.TypeOf(spanner.NullInt64{}):
+					exF.ColumnType = "INT64"
+					exF.NotNull = false
+				case reflect.TypeOf(spanner.NullFloat64{}):
+					exF.ColumnType = "FLOAT64"
+					exF.NotNull = false
+				case reflect.TypeOf(spanner.NullBool{}):
+					exF.ColumnType = "BOOL"
+					exF.NotNull = false
+				case reflect.TypeOf(spanner.NullTime{}):
+					exF.ColumnType = "TIMESTAMP"
+					exF.NotNull = false
+				case reflect.TypeOf(spanner.NullDate{}):
+					exF.ColumnType = "DATE"
+					exF.NotNull = false
+				case reflect.TypeOf([]byte{}):
+					exF.ColumnType = "BYTES"
 				case reflect.TypeOf(time.Time{}):
 					exF.ColumnType = "TIMESTAMP"
+				case reflect.TypeOf(civil.Date{}):
+					exF.ColumnType = "DATE"
 				default:
-					return fmt.Errorf("unsupported type: %s", tf.Type)
+					return fmt.Errorf("unsupported type: %s", sf.Type)
 				}
 			}
 
@@ -186,6 +227,9 @@ func (f *extruderField) DDLColumn() string {
 	buf := bytes.NewBufferString("")
 	buf.WriteString(f.Name)
 	buf.WriteString("\t")
+	if f.Array {
+		buf.WriteString("ARRAY<")
+	}
 	buf.WriteString(f.ColumnType)
 	if f.Length != 0 {
 		buf.WriteString("\t")
@@ -194,10 +238,13 @@ func (f *extruderField) DDLColumn() string {
 		buf.WriteString(")")
 	} else {
 		switch f.ColumnType {
-		case "STRING":
+		case "STRING", "BYTES":
 			buf.WriteString("\t")
 			buf.WriteString("(MAX)")
 		}
+	}
+	if f.Array {
+		buf.WriteString(">")
 	}
 	if f.NotNull {
 		buf.WriteString("\t")

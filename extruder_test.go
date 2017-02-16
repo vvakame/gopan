@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -127,7 +126,7 @@ func TestExtruder_DDLCreateTable(t *testing.T) {
 	ddl := ex.DDLCreateTable()
 	expected := heredoc.Doc(`
 		CREATE TABLE Sample1 (
-			ID	INT64,
+			ID	INT64	NOT NULL,
 		) PRIMARY KEY (ID)
 	`)
 	if v := strings.TrimSpace(ddl); v != strings.TrimSpace(expected) {
