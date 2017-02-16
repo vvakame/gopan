@@ -102,7 +102,7 @@ func TestGopan_Get(t *testing.T) {
 			t.Fatal(err)
 		}
 		keySet := spanner.Keys(g.Key(art).Key)
-		iter := g.client.Single().Read(g.Context, ex.Table(), keySet, ex.Columns())
+		iter := g.Client.Single().Read(g.Context, ex.Table(), keySet, ex.Columns())
 		defer iter.Stop()
 		for i := 0; ; i++ {
 			row, err := iter.Next()
@@ -147,7 +147,7 @@ func TestSpanner_AutoInc(t *testing.T) {
 		spanner.Insert("Article", columns, []interface{}{"Title", "Body", time.Now(), time.Now()}),
 	}
 
-	g.client.Apply(g.Context, m)
+	g.Client.Apply(g.Context, m)
 }
 
 func makeDefaultGopan(c context.Context) (*Gopan, error) {
@@ -160,13 +160,13 @@ func makeDefaultGopan(c context.Context) (*Gopan, error) {
 	if err != nil {
 		return nil, err
 	}
-	g.adminClient = adminClient
+	g.AdminClient = adminClient
 
 	client, err := spanner.NewClient(c, fmt.Sprintf("projects/%s/instances/%s/databases/%s", g.ProjectID, g.Instance, g.DBName))
 	if err != nil {
 		return nil, err
 	}
-	g.client = client
+	g.Client = client
 
 	return g, nil
 }

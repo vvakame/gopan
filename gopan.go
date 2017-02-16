@@ -14,8 +14,8 @@ import (
 
 type Gopan struct {
 	Context     context.Context
-	adminClient *database.DatabaseAdminClient
-	client      *spanner.Client
+	AdminClient *database.DatabaseAdminClient
+	Client      *spanner.Client
 
 	ProjectID string
 	Instance  string
@@ -41,7 +41,7 @@ func (g *Gopan) CreateDB(srcs ...interface{}) error {
 		tableDDLs = append(tableDDLs, extruder.DDLCreateTable())
 	}
 
-	op, err := g.adminClient.CreateDatabase(g.Context, &adminpb.CreateDatabaseRequest{
+	op, err := g.AdminClient.CreateDatabase(g.Context, &adminpb.CreateDatabaseRequest{
 		Parent:          fmt.Sprintf("projects/%s/instances/%s", g.ProjectID, g.Instance),
 		CreateStatement: fmt.Sprintf("CREATE DATABASE `%s`", g.DBName),
 		ExtraStatements: tableDDLs,
@@ -156,7 +156,7 @@ func (g *Gopan) execMutationMulti(src interface{}, f func(table string, in inter
 		muts = append(muts, mut)
 	}
 
-	_, err := g.client.Apply(g.Context, muts)
+	_, err := g.Client.Apply(g.Context, muts)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (g *Gopan) GetMulti(dst interface{}) error {
 		keys = append(keys, key.Key)
 	}
 	keySet := spanner.Keys(keys...)
-	iter := g.client.Single().Read(g.Context, ex.Table(), keySet, ex.Columns())
+	iter := g.Client.Single().Read(g.Context, ex.Table(), keySet, ex.Columns())
 	defer iter.Stop()
 	for i := 0; ; i++ {
 		row, err := iter.Next()
@@ -224,7 +224,7 @@ func (g *Gopan) DeleteMulti(keys []*Key) error {
 		muts = append(muts, mut)
 	}
 
-	_, err := g.client.Apply(g.Context, muts)
+	_, err := g.Client.Apply(g.Context, muts)
 	if err != nil {
 		return err
 	}
