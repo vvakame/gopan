@@ -27,3 +27,5 @@ https://godoc.org/cloud.google.com/go/spanner
   * [ ] alter table
   * [ ] interleave
 * [ ] add read from index support
+* [ ] add PK by multi column support
+* [ ] add `spanner:"name"` tag support
